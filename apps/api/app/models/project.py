@@ -44,6 +44,8 @@ class Room(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     room_type: Mapped[str] = mapped_column(String)
     area_m2: Mapped[float | None] = mapped_column(Float, nullable=True)
     perimeter_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    outlet_count: Mapped[int | None] = mapped_column(nullable=True)
+    light_point_count: Mapped[int | None] = mapped_column(nullable=True)
     source: Mapped[str] = mapped_column(String, default="manual_entry")
     confidence_score: Mapped[float] = mapped_column(Float, default=1.0)
 

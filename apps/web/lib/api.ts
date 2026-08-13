@@ -32,6 +32,8 @@ export type Room = {
   room_type: string;
   area_m2: number | null;
   perimeter_m: number | null;
+  outlet_count: number | null;
+  light_point_count: number | null;
   source: string;
   confidence_score: number;
 };

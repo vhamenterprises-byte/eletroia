@@ -20,6 +20,8 @@ from app.models.engineering import Calculation, RuleResult
 from app.models.project import Project, Room
 
 DEFAULT_LIGHTING_ALLOWANCE_W = 100.0
+LIGHTING_POWER_PER_POINT_W = 60.0
+GENERAL_OUTLET_POWER_ESTIMATE_W = 100.0
 DEFAULT_CIRCUIT_LENGTH_M = 15.0
 DEDICATED_THRESHOLD_W = 1500
 
@@ -134,6 +136,14 @@ def generate_electrical_design(db: Session, project: Project) -> dict:
     created_circuits: list[Circuit] = []
 
     for room in rooms:
+        light_points = room.light_point_count
+        room_has_lighting = light_points is None or light_points > 0
+        lighting_power = (
+            light_points * LIGHTING_POWER_PER_POINT_W
+            if light_points
+            else DEFAULT_LIGHTING_ALLOWANCE_W
+        )
+
         lighting_circuit = Circuit(
             project_id=project.id,
             panel_id=panel.id,
@@ -144,18 +154,19 @@ def generate_electrical_design(db: Session, project: Project) -> dict:
         )
         db.add(lighting_circuit)
         db.flush()
-        _size_circuit(db, project, lighting_circuit, DEFAULT_LIGHTING_ALLOWANCE_W)
+        _size_circuit(db, project, lighting_circuit, lighting_power)
         created_circuits.append(lighting_circuit)
 
         rule_ctx = {
             "room": {"id": room.id, "name": room.name},
-            "room_has_lighting": True,
+            "room_has_lighting": room_has_lighting,
         }
         for evaluation in rules_engine.evaluate_all(rule_ctx):
             _persist_rule_result(db, project.id, evaluation)
 
+        outlet_count = room.outlet_count or 0
         general_loads = [ld for ld in room.loads if ld.nominal_power_w < DEDICATED_THRESHOLD_W]
-        if general_loads:
+        if general_loads or outlet_count > 0:
             tug_circuit = Circuit(
                 project_id=project.id,
                 panel_id=panel.id,
@@ -169,8 +180,22 @@ def generate_electrical_design(db: Session, project: Project) -> dict:
             for ld in general_loads:
                 ld.circuit_id = tug_circuit.id
             total = sum(ld.nominal_power_w for ld in general_loads)
+            total += outlet_count * GENERAL_OUTLET_POWER_ESTIMATE_W
             _size_circuit(db, project, tug_circuit, total)
             created_circuits.append(tug_circuit)
+
+            if room.perimeter_m is not None:
+                tug_ctx = {
+                    "room": {
+                        "id": room.id,
+                        "name": room.name,
+                        "perimeter_m": room.perimeter_m,
+                        "room_type": room.room_type,
+                    },
+                    "tug_count": outlet_count,
+                }
+                for evaluation in rules_engine.evaluate_all(tug_ctx):
+                    _persist_rule_result(db, project.id, evaluation)
 
         dedicated_loads = [ld for ld in room.loads if ld.nominal_power_w >= DEDICATED_THRESHOLD_W]
         for ld in dedicated_loads:

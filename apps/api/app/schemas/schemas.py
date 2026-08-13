@@ -47,6 +47,8 @@ class RoomCreate(BaseModel):
     room_type: str
     area_m2: float | None = None
     perimeter_m: float | None = None
+    outlet_count: int | None = None
+    light_point_count: int | None = None
 
 
 class RoomOut(BaseModel):
@@ -57,6 +59,8 @@ class RoomOut(BaseModel):
     room_type: str
     area_m2: float | None
     perimeter_m: float | None
+    outlet_count: int | None
+    light_point_count: int | None
     source: str
     confidence_score: float
 

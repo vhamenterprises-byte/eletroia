@@ -34,11 +34,19 @@ export default function ProjectWorkspace() {
   const [chatLog, setChatLog] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [rightPanelMode, setRightPanelMode] = useState<"chat" | "interview">("interview");
 
   const [roomName, setRoomName] = useState("");
   const [roomType, setRoomType] = useState("sala");
   const [roomArea, setRoomArea] = useState("");
   const [roomPerimeter, setRoomPerimeter] = useState("");
+  const [roomOutlets, setRoomOutlets] = useState("");
+  const [roomLights, setRoomLights] = useState("");
+
+  const [interviewLog, setInterviewLog] = useState<{ role: "ai" | "user"; text: string }[]>([]);
+  const [interviewAnswer, setInterviewAnswer] = useState("");
+  const [interviewStarted, setInterviewStarted] = useState(false);
+  const [interviewBlocked, setInterviewBlocked] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -65,11 +73,36 @@ export default function ProjectWorkspace() {
       room_type: roomType,
       area_m2: roomArea ? parseFloat(roomArea) : null,
       perimeter_m: roomPerimeter ? parseFloat(roomPerimeter) : null,
+      outlet_count: roomOutlets ? parseInt(roomOutlets, 10) : null,
+      light_point_count: roomLights ? parseInt(roomLights, 10) : null,
     });
     setRooms((prev) => [...prev, room]);
     setRoomName("");
     setRoomArea("");
     setRoomPerimeter("");
+    setRoomOutlets("");
+    setRoomLights("");
+  }
+
+  async function handleStartInterview() {
+    if (!id) return;
+    setInterviewStarted(true);
+    setInterviewLog([]);
+    setInterviewBlocked(false);
+    const res = await api.interviewNext(id);
+    setInterviewLog([{ role: "ai", text: res.question }]);
+    setInterviewBlocked(res.blocked);
+  }
+
+  async function handleAnswerInterview(e: React.FormEvent) {
+    e.preventDefault();
+    if (!id || !interviewAnswer.trim()) return;
+    const answer = interviewAnswer;
+    setInterviewLog((prev) => [...prev, { role: "user", text: answer }]);
+    setInterviewAnswer("");
+    const res = await api.interviewNext(id, answer);
+    setInterviewLog((prev) => [...prev, { role: "ai", text: res.question }]);
+    setInterviewBlocked(res.blocked);
   }
 
   async function handleAddCatalogLoad(code: string) {
@@ -176,6 +209,20 @@ export default function ProjectWorkspace() {
                 className="w-1/2 rounded border border-gray-700 bg-gray-900 p-1.5 text-sm text-white"
               />
             </div>
+            <div className="flex gap-2">
+              <input
+                placeholder="Qtd. tomadas"
+                value={roomOutlets}
+                onChange={(e) => setRoomOutlets(e.target.value)}
+                className="w-1/2 rounded border border-gray-700 bg-gray-900 p-1.5 text-sm text-white"
+              />
+              <input
+                placeholder="Qtd. pontos de luz"
+                value={roomLights}
+                onChange={(e) => setRoomLights(e.target.value)}
+                className="w-1/2 rounded border border-gray-700 bg-gray-900 p-1.5 text-sm text-white"
+              />
+            </div>
             <button className="w-full rounded bg-gray-700 py-1.5 text-sm text-white hover:bg-gray-600">
               Adicionar ambiente
             </button>
@@ -245,6 +292,9 @@ export default function ProjectWorkspace() {
                 <p className="mt-2 text-sm text-gray-400">
                   Área: {r.area_m2 ?? "—"} m² · Perímetro: {r.perimeter_m ?? "—"} m
                 </p>
+                <p className="text-sm text-gray-400">
+                  Tomadas: {r.outlet_count ?? "—"} · Pontos de luz: {r.light_point_count ?? "—"}
+                </p>
               </div>
             ))}
           </div>
@@ -265,37 +315,96 @@ export default function ProjectWorkspace() {
           </ul>
         </section>
 
-        {/* Direita: chat de IA */}
+        {/* Direita: entrevista guiada / chat de IA */}
         <aside className="flex flex-col border-l border-gray-800 bg-panel/50">
-          <div className="border-b border-gray-800 p-3">
-            <h2 className="text-sm font-semibold uppercase text-gray-400">Assistente EletroIA</h2>
+          <div className="flex border-b border-gray-800">
+            <button
+              onClick={() => setRightPanelMode("interview")}
+              className={`flex-1 p-3 text-sm font-semibold uppercase ${
+                rightPanelMode === "interview" ? "bg-gray-800 text-white" : "text-gray-500"
+              }`}
+            >
+              Entrevista
+            </button>
+            <button
+              onClick={() => setRightPanelMode("chat")}
+              className={`flex-1 p-3 text-sm font-semibold uppercase ${
+                rightPanelMode === "chat" ? "bg-gray-800 text-white" : "text-gray-500"
+              }`}
+            >
+              Chat
+            </button>
           </div>
-          <div className="flex-1 space-y-2 overflow-y-auto p-3">
-            {chatLog.map((m, idx) => (
-              <div
-                key={idx}
-                className={`rounded p-2 text-sm ${
-                  m.role === "user" ? "bg-blue-600/20 text-blue-100" : "bg-gray-800 text-gray-200"
-                }`}
-              >
-                {m.text}
+
+          {rightPanelMode === "interview" ? (
+            <>
+              <div className="flex-1 space-y-2 overflow-y-auto p-3">
+                {!interviewStarted && (
+                  <div>
+                    <p className="text-sm text-gray-500">
+                      A IA pergunta, ambiente por ambiente, quantas tomadas, luminárias e
+                      equipamentos você quer — uma pergunta de cada vez.
+                    </p>
+                    <button
+                      onClick={handleStartInterview}
+                      className="mt-3 w-full rounded bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-500"
+                    >
+                      Iniciar entrevista
+                    </button>
+                  </div>
+                )}
+                {interviewLog.map((m, idx) => (
+                  <div
+                    key={idx}
+                    className={`rounded p-2 text-sm ${
+                      m.role === "user" ? "bg-blue-600/20 text-blue-100" : "bg-gray-800 text-gray-200"
+                    }`}
+                  >
+                    {m.text}
+                  </div>
+                ))}
               </div>
-            ))}
-            {chatLog.length === 0 && (
-              <p className="text-sm text-gray-600">
-                Pergunte algo sobre o projeto, ex: "Por que o chuveiro está em um circuito
-                separado?"
-              </p>
-            )}
-          </div>
-          <form onSubmit={handleSendChat} className="border-t border-gray-800 p-3">
-            <input
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Digite sua pergunta..."
-              className="w-full rounded border border-gray-700 bg-gray-900 p-2 text-sm text-white"
-            />
-          </form>
+              {interviewStarted && (
+                <form onSubmit={handleAnswerInterview} className="border-t border-gray-800 p-3">
+                  <input
+                    value={interviewAnswer}
+                    onChange={(e) => setInterviewAnswer(e.target.value)}
+                    placeholder={interviewBlocked ? "Pedido não permitido — tente outra resposta" : "Sua resposta..."}
+                    className="w-full rounded border border-gray-700 bg-gray-900 p-2 text-sm text-white"
+                  />
+                </form>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="flex-1 space-y-2 overflow-y-auto p-3">
+                {chatLog.map((m, idx) => (
+                  <div
+                    key={idx}
+                    className={`rounded p-2 text-sm ${
+                      m.role === "user" ? "bg-blue-600/20 text-blue-100" : "bg-gray-800 text-gray-200"
+                    }`}
+                  >
+                    {m.text}
+                  </div>
+                ))}
+                {chatLog.length === 0 && (
+                  <p className="text-sm text-gray-600">
+                    Pergunte algo sobre o projeto, ex: "Por que o chuveiro está em um circuito
+                    separado?"
+                  </p>
+                )}
+              </div>
+              <form onSubmit={handleSendChat} className="border-t border-gray-800 p-3">
+                <input
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder="Digite sua pergunta..."
+                  className="w-full rounded border border-gray-700 bg-gray-900 p-2 text-sm text-white"
+                />
+              </form>
+            </>
+          )}
         </aside>
       </div>
 
