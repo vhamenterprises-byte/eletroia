@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #0b0f19;
+  color: #e5e7eb;
+}
+
+.status-badge {
+  @apply inline-block rounded px-2 py-0.5 text-xs font-medium;
+}
+.status-VERDE {
+  @apply bg-status-verde/20 text-status-verde;
+}
+.status-AMARELO {
+  @apply bg-status-amarelo/20 text-status-amarelo;
+}
+.status-VERMELHO {
+  @apply bg-status-vermelho/20 text-status-vermelho;
+}
+.status-AZUL {
+  @apply bg-status-azul/20 text-status-azul;
+}
